@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500&display=swap" rel="stylesheet"><link rel="stylesheet" href="/style.css"><title>Digitale Leinwand</title></head>
+<body>
+<main class="wrap">
+  <h1>Eine Leinwand für eure Feier</h1>
+  <p class="muted">Gäste scannen den QR-Code, machen Fotos und sehen alle Bilder gemeinsam auf einer Leinwand.</p>
+  <form id="f">
+    <input type="text" id="name" placeholder="Name der Feier, z. B. Annas 30." maxlength="60" required autocomplete="off">
+    <button class="btn block" id="go">Neue Feier erstellen</button>
+    <p class="error" id="err"></p>
+  </form>
+  <section id="mine" hidden style="margin-top:34px">
+    <h2>Meine Feiern</h2>
+    <ul class="list" id="list"></ul>
+  </section>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const list = getFeiern();
+if (list.length) {
+  $('#mine').hidden = false;
+  for (const f of list) {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '/admin/' + f.id + '#' + f.key;
+    const n = document.createElement('div'); n.textContent = f.name;
+    const s = document.createElement('span'); s.textContent = 'Verwalten';
+    a.append(n, s); li.append(a); $('#list').append(li);
+  }
+}
+$('#f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('#go'); btn.disabled = true; $('#err').textContent = '';
+  try {
+    const r = await api('/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('#name').value }) });
+    saveFeier({ id: r.id, name: r.name, key: r.adminToken });
+    location.href = '/admin/' + r.id + '#' + r.adminToken;
+  } catch (err) { $('#err').textContent = err.message; btn.disabled = false; }
+});
+</script>
+</body></html>
