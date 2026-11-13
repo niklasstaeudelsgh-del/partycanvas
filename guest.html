@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500&display=swap" rel="stylesheet"><link rel="stylesheet" href="/style.css">
+<meta name="theme-color" content="#1f3d36"><link rel="manifest" href="/e/__ID__/manifest.webmanifest"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>Feier</title></head>
+<body>
+<main class="wrap">
+  <h1 id="title">&nbsp;</h1>
+
+  <section id="s-name" hidden>
+    <p class="muted">Wie heißt du? Dein Name steht bei deinen Fotos.</p>
+    <form id="nf">
+      <input type="text" id="name" maxlength="30" placeholder="Dein Name" autocomplete="given-name" required>
+      <button class="btn block">Weiter</button>
+    </form>
+  </section>
+
+  <section id="s-menu" hidden>
+    <p class="muted" id="hello"></p>
+    <div class="stack">
+      <a class="choice" id="foto"><strong>Foto</strong><span>Mach ein Foto oder nimm eine Party-Aufgabe an.</span></a>
+      <a class="choice" id="wall"><strong>Leinwand</strong><span>Alle Fotos ansehen und Herzen verteilen.</span></a>
+    </div>
+
+    <div class="a2hs" id="a2hs" hidden>
+      <h2>Zum Home-Bildschirm hinzufügen</h2>
+      <p class="muted" id="a2hs-text"></p>
+      <button class="btn ghost small" id="a2hs-btn" hidden>Jetzt hinzufügen</button>
+    </div>
+
+    <p class="foot"><a href="#" id="change">Namen ändern</a></p>
+  </section>
+</main>
+<script src="/js/common.js"></script>
+<script>
+const id = eventId();
+$('#foto').href = '/e/' + id + '/foto';
+$('#wall').href = '/e/' + id + '/leinwand';
+loadEvent().then((ev) => { $('#title').textContent = ev.name; });
+
+function render() {
+  const n = getName();
+  $('#s-name').hidden = !!n;
+  $('#s-menu').hidden = !n;
+  if (n) $('#hello').textContent = 'Hallo ' + n + '! Was möchtest du tun?';
+}
+$('#nf').onsubmit = (e) => {
+  e.preventDefault();
+  const n = $('#name').value.trim();
+  if (!n) return;
+  setName(n); render();
+};
+$('#change').onclick = (e) => {
+  e.preventDefault();
+  $('#name').value = getName(); setName(''); render();
+};
+render();
+
+// Zum Home-Bildschirm hinzufügen
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let deferred = null;
+if (!standalone) {
+  $('#a2hs').hidden = false;
+  $('#a2hs-text').textContent = ios
+    ? 'Tippe im Browser auf das Teilen-Symbol (Quadrat mit Pfeil) und wähle „Zum Home-Bildschirm“. Dann öffnest du die Feier mit einem Tipp.'
+    : 'Öffne das Browser-Menü und wähle „Zum Startbildschirm hinzufügen“. Dann öffnest du die Feier mit einem Tipp.';
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); deferred = e;
+    $('#a2hs-text').textContent = 'Dann öffnest du die Feier mit einem Tipp, ohne den QR-Code erneut zu scannen.';
+    $('#a2hs-btn').hidden = false;
+  });
+  $('#a2hs-btn').onclick = async () => { if (deferred) { deferred.prompt(); deferred = null; $('#a2hs-btn').hidden = true; } };
+}
+</script>
+</body></html>

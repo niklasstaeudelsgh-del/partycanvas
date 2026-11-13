@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Inter:wght@400;500&display=swap" rel="stylesheet"><link rel="stylesheet" href="/style.css">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png"><title>Leinwand</title></head>
+<body class="canvas">
+<header>
+  <h1 id="title">Leinwand</h1>
+  <div class="links">
+    <a href="#" id="win-btn" hidden>Siegerehrung</a>
+    <a id="back">Zurück</a>
+  </div>
+</header>
+
+<main class="board" id="board">
+  <div class="empty" id="empty" hidden><h2>Noch ist die Leinwand leer</h2><p>Das erste Foto gehört dir.</p></div>
+</main>
+
+<div class="overlay" id="lb" hidden>
+  <div class="lb-card">
+    <button class="lb-x" id="lb-x" aria-label="Schließen">&times;</button>
+    <img id="lb-img" alt="">
+    <div class="lb-meta">
+      <div><strong id="lb-name"></strong><p id="lb-task"></p></div>
+      <button class="heart big" id="lb-heart" aria-label="Herz geben"></button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="win" hidden>
+  <div class="win-card">
+    <h2>Die Lieblingsfotos des Abends</h2>
+    <div class="podium" id="podium"></div>
+    <button class="btn" id="win-close">Schließen</button>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const id = eventId();
+const voter = getVoter();
+$('#back').href = '/e/' + id;
+loadEvent().then((ev) => { $('#title').textContent = ev.name; });
+
+const PINS = ['#b5483b', '#2f5d8a', '#3f7d5a', '#c4a03a'];
+const board = $('#board');
+const els = new Map(), data = new Map();
+let openId = null;
+
+function tile(p) {
+  const f = document.createElement('figure');
+  f.className = 'polaroid';
+  f.style.setProperty('--r', (((p.id * 7) % 5) - 2) * 0.7 + 'deg'); // leicht schief
+  f.style.setProperty('--pin', PINS[p.id % PINS.length]);
+  const pin = document.createElement('span'); pin.className = 'pin';
+  const img = document.createElement('img');
+  img.src = p.thumb; img.alt = p.task || 'Foto'; img.loading = 'lazy';
+  img.onclick = () => openPhoto(p.id);
+  const b = document.createElement('button');
+  b.className = 'heart'; b.type = 'button'; b.innerHTML = HEART + '<span></span>';
+  b.onclick = (e) => { e.stopPropagation(); toggle(p.id); };
+  f.append(pin, img, b);
+  return f;
+}
+
+function paint(p) {
+  const f = els.get(p.id);
+  if (f) {
+    const b = f.querySelector('.heart');
+    b.classList.toggle('on', p.liked);
+    b.querySelector('span').textContent = p.likes || '';
+    b.setAttribute('aria-label', p.liked ? 'Herz zurücknehmen' : 'Herz geben');
+  }
+  if (openId === p.id) paintLb(p);
+}
+
+async function toggle(pid) {
+  const p = data.get(pid); if (!p) return;
+  const want = !p.liked;
+  p.liked = want; p.likes += want ? 1 : -1; paint(p);
+  try {
+    const r = await api('/events/' + id + '/photos/' + pid + '/like', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voter, like: want }),
+    });
+    p.liked = r.liked; p.likes = r.likes;
+  } catch { p.liked = !want; p.likes += want ? -1 : 1; }
+  paint(p);
+}
+
+// Großansicht
+function paintLb(p) {
+  const h = $('#lb-heart');
+  h.classList.toggle('on', p.liked);
+  h.innerHTML = HEART + '<span>' + (p.likes || '') + '</span>';
+}
+function openPhoto(pid) {
+  const p = data.get(pid); if (!p) return;
+  openId = pid;
+  $('#lb-img').src = p.url;
+  $('#lb-name').textContent = p.author ? 'von ' + p.author : 'von einem Gast';
+  $('#lb-task').textContent = p.task || '';
+  $('#lb-task').hidden = !p.task;
+  paintLb(p);
+  $('#lb').hidden = false;
+}
+function closeLb() { $('#lb').hidden = true; openId = null; }
+$('#lb-x').onclick = closeLb;
+$('#lb').onclick = (e) => { if (e.target === $('#lb')) closeLb(); };
+$('#lb-heart').onclick = () => { if (openId) toggle(openId); };
+
+// Siegerehrung
+async function showWinners() {
+  try {
+    const r = await api('/events/' + id + '/leaderboard');
+    if (!r.open) return;
+    const box = $('#podium'); box.innerHTML = '';
+    if (!r.winners.length) {
+      box.innerHTML = '<p class="muted">Es wurden keine Herzen vergeben.</p>';
+    } else {
+      const order = [1, 0, 2].filter((i) => r.winners[i]); // Platz 2, 1, 3
+      for (const i of order) {
+        const w = r.winners[i], rank = i + 1;
+        const d = document.createElement('div');
+        d.className = 'place p' + rank;
+        d.style.setProperty('--d', rank === 3 ? '.3s' : rank === 2 ? '1.2s' : '2.4s');
+        const rk = document.createElement('div'); rk.className = 'rank'; rk.textContent = rank;
+        const fig = document.createElement('figure'); fig.className = 'polaroid';
+        fig.style.setProperty('--r', (rank === 1 ? 0 : rank === 2 ? -1.2 : 1.2) + 'deg');
+        const img = document.createElement('img'); img.src = w.thumb; img.alt = '';
+        fig.append(img);
+        const who = document.createElement('div'); who.className = 'who'; who.textContent = w.author || 'Gast';
+        const hs = document.createElement('div'); hs.className = 'hearts'; hs.innerHTML = HEART + '<span>' + w.likes + '</span>';
+        d.append(rk, fig, who, hs);
+        box.append(d);
+      }
+    }
+    $('#win').hidden = false;
+  } catch {}
+}
+$('#win-close').onclick = () => { $('#win').hidden = true; };
+$('#win').onclick = (e) => { if (e.target === $('#win')) $('#win').hidden = true; };
+$('#win-btn').onclick = (e) => { e.preventDefault(); showWinners(); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeLb(); $('#win').hidden = true; } });
+
+async function refresh() {
+  try {
+    const r = await api('/events/' + id + '/photos?voter=' + encodeURIComponent(voter));
+    const ids = new Set(r.photos.map((p) => p.id));
+    for (const [pid, el] of els) {
+      if (!ids.has(pid)) { el.remove(); els.delete(pid); data.delete(pid); if (openId === pid) closeLb(); }
+    }
+    const fresh = r.photos.filter((p) => !els.has(p.id)).reverse(); // älteste zuerst, neueste landen oben
+    for (const p of fresh) {
+      data.set(p.id, p);
+      const el = tile(p); els.set(p.id, el);
+      board.prepend(el); paint(p);
+    }
+    for (const p of r.photos) {
+      if (fresh.includes(p)) continue;
+      const cur = data.get(p.id);
+      cur.likes = p.likes; cur.liked = p.liked; paint(cur);
+    }
+    $('#empty').hidden = els.size > 0;
+    $('#win-btn').hidden = !r.revealOpen;
+    if (r.revealOpen) {
+      const key = 'sieger:' + id + ':' + r.revealAt;
+      let seen = false;
+      try { seen = !!localStorage.getItem(key); localStorage.setItem(key, '1'); } catch {}
+      if (!seen) showWinners(); // einmal automatisch in der Mitte zeigen
+    }
+  } catch {}
+}
+refresh();
+setInterval(refresh, 6000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+</script>
+</body></html>
